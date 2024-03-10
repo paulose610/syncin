@@ -1,3 +1,9 @@
+<script setup>
+// @ is an alias to /src
+import navbar from "@/components/navbar.vue";
+
+</script>
+
 <template>
   <div class="home">
     <navbar />
@@ -5,8 +11,8 @@
   </div>
 </template>
 
-<script setup>
-// @ is an alias to /src
-import navbar from "@/components/navbar.vue";
-
-</script>
+<style scope>
+  .home{
+    outline: 1px solid red;
+  }
+</style>

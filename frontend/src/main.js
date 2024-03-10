@@ -1,5 +1,25 @@
+import './assets/main.css'
+
 import { createApp } from "vue";
+import { createStore } from "vuex"
+
+import 'bootstrap/dist/css/bootstrap.css';
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+
+
 import App from "./App.vue";
 import router from "./router";
+import Userstore from "./stores/User.js"
 
-createApp(App).use(router).mount("#app");
+const store=createStore({
+    modules: {
+        user: Userstore,
+    }
+})
+const app = createApp(App);
+
+app.use(router);
+app.use(store);
+
+
+app.mount("#app");
