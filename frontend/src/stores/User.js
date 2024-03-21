@@ -1,5 +1,4 @@
 import { createStore } from 'vuex';
-import { onMounted } from 'vue';
 import axios from 'axios';
 import router from "@/router/index.js"
 
@@ -8,10 +7,12 @@ const Userstore =createStore({
     state(){
         return {
             user:{
-            username: "",
+            username: "baby",
             email: "",
             role: "",
             token: localStorage.getItem('authtoken') || "",
+            creator_name:"",
+            id: 0,
             },
             error:""
         };
@@ -23,16 +24,24 @@ const Userstore =createStore({
     },
 
     mutations:{
+
+        setcreator(state,d){
+            state.user.creator_name=d.creator_name
+        },
         getuser(state,d){
+            state.user.id=d.id;
             state.user.username=d.username;
             state.user.email=d.email;
             state.user.role=d.role;
+            state.user.creator_name=d.creator_name;
+            state.user.last_played=d.last_played;
         },
         setuser(state,d){
             state.user.username=d.username;
             state.user.email=d.email;
             state.user.token=d.token;
             state.user.role=d.role;
+            state.user.creator_name=d.creator_name
             localStorage.setItem("authtoken",d.token);
         },
         seterror(state, error) {
@@ -43,10 +52,15 @@ const Userstore =createStore({
             state.user.email = '';
             state.user.role = '';
             state.user.token = '';
-            localStorage.setItem("authtoken")
+            localStorage.removeItem("authtoken");
         },
         clearerror(state) {
             state.error = '';
+        },
+        become_creator(state,payload){
+            state.user.creator_name=payload;
+            state.user.role='creator';
+            console.log(state.user.creator_name);
         }
     },
 
@@ -61,10 +75,10 @@ const Userstore =createStore({
             commit('clearerror')
         },
 
-        getuserinfo({ commit }){
+        async getuserinfo({ commit }){
             const token=localStorage.getItem('authtoken');
             const path='http://127.0.0.1:5000/api/retreive'
-            axios.get(path,{
+            return axios.get(path,{
                 headers: {
                     'Authentication-Token': token
                 },
@@ -76,6 +90,11 @@ const Userstore =createStore({
                 console.log('no data fetched');
             })
 
+        },
+
+        become_creator({ commit },payload){
+            console.log(payload);
+            commit('become_creator',payload);
         },
 
         async authenticate({ commit }){
@@ -92,7 +111,7 @@ const Userstore =createStore({
             })
             .then((res)=>{
                 if (res.data.authenticated){
-                    return true;
+                    return res.data.authenticated;
                 }
                 else {
                     console.log(res.data.authenticated+"hi");
@@ -106,9 +125,9 @@ const Userstore =createStore({
             })
         },
 
-        login({ commit },form){
+        async login({ commit },form){
             const path='http://127.0.0.1:5000/api/login';
-            axios.post(path,form,{
+            return axios.post(path,form,{
                 headers: {
                     'Content-Type': 'application/json'
                 },
@@ -125,14 +144,15 @@ const Userstore =createStore({
             })
         },
 
-        logout({ commit }){
+        async logout({ commit }){
             localStorage.removeItem('authtoken')
-            commit('clearuser');
+            // commit('clearuser');
+            router.push({name:'entry'});
         },
 
-        register({commit},form){
+        async register({commit},form){
             const path='http://127.0.0.1:5000/api/register';
-            axios.post(path,form,{
+            return axios.post(path,form,{
                 headers: {
                     'Content-Type': 'application/json'
                 },
@@ -141,6 +161,7 @@ const Userstore =createStore({
                 commit('setuser',res.data.userdata)
                 commit('clearerror');
                 console.log(res.data);
+                router.push({name:'home'});
             })
             .catch((err)=>{
                 commit('seterror', err.response.data.message);

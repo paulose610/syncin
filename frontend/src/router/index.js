@@ -1,8 +1,11 @@
 import { createRouter, createWebHistory } from "vue-router";
 import Home from "../views/Home.vue";
 import Entry from "../views/Entry.vue";
+import Cprofile from "../views/Cprofile.vue";
+import Uprofile from "../views/Uprofile.vue";
+import Admin from "../views/Admin.vue";
 import Userstore from "@/stores/User.js";
-import { ref } from "vue"
+import Libstore from "@/stores/Lib.js";
 
 const routes = [
   {
@@ -15,7 +18,25 @@ const routes = [
     path: "/entry",
     name: "entry",
     component: Entry,
+  },
+  {
+    path: "/cprofile",
+    name: "cprofile",
+    component: Cprofile,
+    meta: { requiresAuth: true }
   }, 
+  {
+    path: "/uprofile",
+    name: "uprofile",
+    component: Uprofile,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: "/admin",
+    name: "admin",
+    component: Admin,
+    meta: { requiresAuth: true }
+  }
 ];
 
 const router = createRouter({
@@ -26,13 +47,30 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth) {
-    Userstore.dispatch('authenticate').then((authenticated) => {
-      if (authenticated) {
-        console.log('authenticated')
-        next();
-      } else {
-        next({ name: 'entry' }); // Redirect to entry if not authenticated
-      }
+    Userstore.dispatch('authenticate').then((authorised) => {
+      if (authorised) {
+        if (to.name==='home'){
+          console.log('authenticated');
+          next();
+        }
+        else if (to.name==='cprofile' && authorised==='creator'){
+          console.log('authorised:'+authorised);
+          next();
+        }
+        else if (to.name==='uprofile' && ['creator', 'user'].includes(authorised)){
+          console.log(authorised);
+          next();
+        }
+        else if (to.name==='admin' && authorised==='admin'){
+          console.log(authorised);
+          next();
+        }
+        else{
+          console.log('not authorised');
+          next({name:'home'});
+        }
+      } 
+      else next({name:'entry'});
     });
   } else {
     next();

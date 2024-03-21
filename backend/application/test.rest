@@ -1,11 +1,6 @@
-POST http://127.0.0.1:5000/api/register
+Post http://127.0.0.1:5000/api/songs
 Content-Type: application/json
 
-{
-    "username": "user2",
-    "password": "pswd2",
-    "email": "user2@gm.com",
-    "creator": true
-}
 
 
+GET http://127.0.0.1:5000/api/genres
