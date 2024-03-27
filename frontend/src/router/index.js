@@ -4,6 +4,10 @@ import Entry from "../views/Entry.vue";
 import Cprofile from "../views/Cprofile.vue";
 import Uprofile from "../views/Uprofile.vue";
 import Admin from "../views/Admin.vue";
+import Search from "../views/Search";
+import Fsearch from "../views/Fsearch.vue";
+import Searchd from "../views/Searchd";
+import Artist from "../views/Artist.vue";
 import Userstore from "@/stores/User.js";
 import Libstore from "@/stores/Lib.js";
 
@@ -36,7 +40,35 @@ const routes = [
     name: "admin",
     component: Admin,
     meta: { requiresAuth: true }
-  }
+  },
+  {
+    path: "/search/:param",
+    name: "search",
+    component: Search,
+    props: true,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: "/fsearch",
+    name: "fsearch",
+    component: Fsearch,
+    props: true,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: "/searchd/:param",
+    name: "searchd",
+    component: Searchd,
+    props: true,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: "/artist/:param",
+    name: "artist",
+    component: Artist,
+    props: true,
+    meta: { requiresAuth: true }
+  },
 ];
 
 const router = createRouter({
@@ -63,6 +95,19 @@ router.beforeEach((to, from, next) => {
         }
         else if (to.name==='admin' && authorised==='admin'){
           console.log(authorised);
+          next();
+        }
+        else if (to.name=='search'){
+          console.log('authenticated');
+          next();
+        }
+        else if (to.name=='fsearch'){
+          next()
+        }
+        else if (to.name=='searchd'){
+          next();
+        }
+        else if (to.name=='artist'){
           next();
         }
         else{

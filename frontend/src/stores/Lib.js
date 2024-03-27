@@ -7,8 +7,10 @@ import Userstore from "./User";
 const Libstore = createStore({
     state(){
         return {
+           creators:[],
            playlists: [],
            likedsongs: [],
+           flaggedsongs:[],
            albums: [],
            useralbums: [],
            songs: [] ,
@@ -17,22 +19,83 @@ const Libstore = createStore({
     },
 
     getters:{
-            getpl: (state) => () => state.playlists,
+            getcreators:(state)=>(val)=>{
+                let ta=state.creators;
+                if (val){
+                    ta=ta.filter(a=>a.creator_name.toLowerCase().startsWith(val.toLowerCase()));
+                }
+                return ta.sort((a,b)=>b.likes-a.likes);
+            },
+
+            getpl: (state) => () => {
+                const pl=state.playlists
+                return [...new Set(pl.map(pl=>pl.name))]
+            },
+            getplsongs: (state)=>(name)=>{
+                const sids=state.playlists.filter(v=>v.name==name).map(v=>v.song_id);
+                return state.songs.filter(s=>sids.includes(s.id.toString()));
+            },
+            getplta:(state)=>(sid)=>{
+                const pl=state.playlists
+                const plws=pl.filter(pl=>pl.song_id==sid).map(pl=>pl.name)
+                return pl.filter(pl=>!plws.includes(pl.name)).map(pl=>pl.name);
+            },
             getls: (state) => () => state.likedsongs,
+            getfs: (state) => ()=> state.flaggedsongs,
             getalbums: (state) => () => state.albums,
+            getalbumsongs:(state)=>(id)=>state.songs.filter(s=>s.album_id==id),
             getuseralbums: (state) => () => state.useralbums,
             getsongs: (state) => () => state.songs,
             getusersongs: (state) => () => state.usersongs,
-        },
+            
+            gettopsongs: (state) => (val) => {
+                let fs = state.songs;
+                if (val) {
+                    fs = fs.filter(song => song.title.toLowerCase().startsWith(val.toLowerCase()));
+                }
+                return fs.sort((a, b) => b.likes - a.likes);
+            },
+
+            gettopalbums: (state)=>(val) => {
+                let fa=state.albums;
+                if (val){
+                    fa=fa.filter(al=>al.name.toLowerCase().startsWith(val.toLowerCase()));
+                }
+                return fa.sort((a,b)=>b.likes-a.likes);
+            },
+
+            artistsongs: (state)=>(val)=>{
+                return state.songs.filter(song=>song.creator_id==val).sort((a,b)=>b.likes-a.likes);
+            },
+        
+            artistalbums: (state)=>(val)=>{
+                return state.albums.filter(a=>a.creator_id==val).sort((a,b)=>b.likes-a.likes);
+            },
+
+            getgenres: (state)=>()=>{
+                let genres = state.songs.map(s=>s.genre);
+                genres=[...new Set(genres)]
+                return genres;
+            }
+            },
         
 
     mutations: {
+
+        setcreators(state,crtrs){
+            state.creators=crtrs;
+        },
+
         setplaylists(state,pl){
             state.playlists=pl;
         },
         
         setlikedsongs(state,ls){
-            state.likedsongs=ls;
+            state.likedsongs=ls.map(s=>s.song_id);
+        },
+
+        setflaggedsongs(state,fs){
+            state.flaggedsongs=fs.map(s=>s.song_id);
         },
 
         setalbums(state,al){
@@ -44,8 +107,11 @@ const Libstore = createStore({
         },
 
         createalbum(state,al){
-            state.albums.push(al);
-            state.useralbums.push(al);
+            // state.albums.push(al);
+            // state.useralbums.push(al);
+            state.albums = [...state.albums, al];
+            state.useralbums = [...state.useralbums, al];
+            console.log(state.albums);
         },
 
         editalbum(state,album){
@@ -53,10 +119,17 @@ const Libstore = createStore({
             const ualind=state.useralbums.findIndex(s=>s.id==album.id);
             if (index !== -1) {
                 const atoedit = state.albums[index];
-                state.albums[index] = { ...atoedit, ...album };
+                state.albums = [...state.albums.slice(0,index),
+                                { ...atoedit, ...album },
+                                ...state.albums.slice(index+1)    
+                            ];
             }
             if (ualind !== -1) {
-                state.useralbums[ualind]=state.albums[index];
+                state.useralbums=[
+                    ...state.useralbums.slice(0,ualind),
+                    state.useralbums[index],
+                    ...state.useralbums.slice(ualind+1)
+                ];
             }
 
         },
@@ -97,8 +170,10 @@ const Libstore = createStore({
         },
 
         uploadsong(state,song){
-            state.songs.push(song);
-            state.usersongs.push(song); 
+            state.songs = [...state.songs, song]; 
+            state.usersongs = [...state.usersongs, song]; 
+            state.songs=state.songs;
+
         },
 
         editsong(state,song){
@@ -106,22 +181,202 @@ const Libstore = createStore({
             const usind=state.usersongs.findIndex(s=>s.id==song.id);
             if (index !== -1) {
                 const stoedit = state.songs[index];
-                state.songs[index] = { ...stoedit, ...song };
+                state.songs = [
+                    ...state.songs.slice(0, index), 
+                    { ...stoedit, ...song }, 
+                    ...state.songs.slice(index + 1) 
+                ];
             }
             if (usind!==-1){
-                state.usersongs[usind]=state.songs[index];
+                state.usersongs = [
+                    ...state.usersongs.slice(0, usind), 
+                    state.songs[index], 
+                    ...state.usersongs.slice(usind + 1) 
+                ];
             }
         },
 
         delsong(state,id){
             const ind=state.songs.findIndex(s=>s.id==id);
             const usind=state.usersongs.findIndex(s=>s.id==id);
-            state.songs.splice(ind,1);
-            state.usersongs.splice(usind,1);
+            state.songs = [
+                ...state.songs.slice(0, ind), 
+                ...state.songs.slice(ind + 1) 
+            ];
+            state.usersongs = [
+                ...state.usersongs.slice(0, usind), 
+                ...state.usersongs.slice(usind + 1) 
+            ];
         },
-    },    
+
+        changeplay(state,ids){
+            state.songs=state.songs.map(s=>{
+                if (s.id==ids.pid){
+                    return {...s,play:false}
+                }
+                else if(s.id==ids.cid){
+                    return {...s,play:true}
+                }
+                else return {...s}
+            });
+            state.usersongs=state.usersongs.map(s=>{
+                if (s.id==ids.pid){
+                    return {...s,play:false}
+                }
+                else if(s.id==ids.cid){
+                    return {...s,play:true}
+                }
+                else return {...s}
+            });
+        },
+
+        addnewpl(state,plname){
+            const newpl={
+                'song_id': -1,
+                'name': plname
+            }
+            state.playlists.push(newpl);
+            // console.log(state.playlists);
+        },
+        delpl(state,plname){
+            const index=state.playlists.findIndex(pl=>pl.name==plname);
+            state.playlists=[
+                    ...state.playlists.slice(0,index),
+                    ...state.playlists.slice(index+1)
+                            ]
+        },
+
+        atpl(state,info){
+            const pls=state.playlists
+            state.playlists=[...pls,{'name':info.pl,'song_id':info.sid}];
+        },
+
+        delfpl(state,info){
+            const pls=state.playlists
+            const indx=pls.findIndex(pl=>pl.name==info.pl && pl.song_id==info.sid)
+            state.playlists=[
+                ...pls.slice(0,indx),
+                ...pls.slice(indx+1)
+                ]
+        },
+
+        like(state,info){
+            const index=state.likedsongs.findIndex(s=>s==info.sid)
+            if (index==-1) {
+                state.likedsongs=[...state.likedsongs,info.sid];
+                console.log(state.likedsongs);
+                let ind=state.songs.findIndex(s=>s.id==info.sid);
+                const stoe=state.songs[ind];
+                stoe.likes=stoe.likes+1;
+                state.songs=[
+                    ...state.songs.slice(0,ind),
+                    stoe,
+                    ...state.songs.slice(ind+1)
+                ]
+
+                ind=state.albums.findIndex(s=>s.id==info.aid);
+                if (ind>-1){
+                    const atoe=state.albums[ind];
+                    atoe.likes=atoe.likes+1;
+                    state.albums=[
+                    ...state.albums.slice(0,ind),
+                    atoe,
+                    ...state.albums.slice(ind+1)
+                    ]  
+                }
+                
+                ind=state.creators.findIndex(s=>s.id==info.cid);
+                const ctoe=state.creators[ind];
+                ctoe.clikes=ctoe.clikes+1;
+                state.creators=[
+                    ...state.creators.slice(0,ind),
+                    ctoe,
+                    ...state.creators.slice(ind+1)
+                ]                 
+                
+            }
+            else {
+                state.likedsongs=[
+                    ...state.likedsongs.slice(0,index),
+                    ...state.likedsongs.slice(index+1)
+                ]
+                console.log(state.likedsongs);
+                let ind=state.songs.findIndex(s=>s.id==info.sid);
+                const stoe=state.songs[ind];
+                stoe.likes=stoe.likes-1;
+                state.songs=[
+                    ...state.songs.slice(0,ind),
+                    stoe,
+                    ...state.songs.slice(ind+1)
+                ]
+
+                ind=state.albums.findIndex(s=>s.id==info.aid);
+                if (ind>-1){
+                    const atoe=state.albums[ind];
+                    atoe.likes=atoe.likes-1;
+                    state.albums=[
+                    ...state.albums.slice(0,ind),
+                    atoe,
+                    ...state.albums.slice(ind+1)
+                    ]  
+                }
+                
+                ind=state.creators.findIndex(s=>s.id==info.cid);
+                const ctoe=state.creators[ind];
+                ctoe.clikes=ctoe.clikes-1;
+                state.creators=[
+                    ...state.creators.slice(0,ind),
+                    ctoe,
+                    ...state.creators.slice(ind+1)
+                ]                 
+            }
+        },
+
+        flag(state,sid){
+            const index=state.flaggedsongs.findIndex(s=>s==sid)
+            if (index==-1) {
+                state.flaggedsongs=[...state.flaggedsongs,sid]
+                const ind=state.songs.findIndex(s=>s.id==sid);
+                const stoe=state.songs[ind];
+                stoe.flags=stoe.flags+1;
+                state.songs=[
+                    ...state.songs.slice(0,ind),
+                    stoe,
+                    ...state.songs.slice(ind+1)
+                ]                
+            }
+                else {
+                state.flaggedsongs=[
+                    ...state.flaggedsongs.slice(0,index),
+                    ...state.flaggedsongs.slice(index+1)
+                ]
+                const ind=state.songs.findIndex(s=>s.id==sid);
+                const stoe=state.songs[ind];
+                stoe.flags=stoe.flags-1;
+                state.songs=[
+                    ...state.songs.slice(0,ind),
+                    stoe,
+                    ...state.songs.slice(ind+1)
+                ]                 
+            }            
+        }
+    },  
+    
 
     actions: {
+
+        async loadcrtrs({ commit }){
+            const path='http://127.0.0.1:5000/getcreators';
+            return axios.get(path,{
+
+            })
+            .then((res)=>{
+                commit('setcreators', res.data);
+            })
+            .catch((err)=>{
+                console.log("coudln't load creators!");
+            })
+        },
 
         async loadpl({ commit },user){
             const path='http://127.0.0.1:5000/api/playlists';
@@ -151,7 +406,24 @@ const Libstore = createStore({
                 commit('setlikedsongs',res.data);
             })
             .catch((err)=>{
+                
                 console.log("couldn't load liked songs!");
+            })
+        },
+
+        async loadfs({commit}){
+            const path='http://127.0.0.1:5000/api/flaggedsongs';
+            const token=localStorage.getItem('authtoken');
+            return axios.get(path,{
+                headers:{
+                    'Authentication-Token': token
+                } 
+            })   
+            .then((res)=>{
+                commit('setflaggedsongs',res.data);
+            })         
+            .catch((err)=>{
+                console.log("couldn't load liked songs");
             })
         },
 
@@ -175,7 +447,7 @@ const Libstore = createStore({
         },
 
         createalbum({ commit },album){
-            console.log(album)
+            console.log(album);
             commit('createalbum', album);
         },
 
@@ -220,11 +492,129 @@ const Libstore = createStore({
         },
 
         async libload({ dispatch },user){
-            await dispatch('loadls',user);
+            await dispatch('loadcrtrs');
+            await dispatch('loadls');
+            await dispatch('loadfs');
             await dispatch('loadpl',user);
             await dispatch('loadalbums',user);
             await dispatch('loadsongs',user);
         },
+
+        changeplay({ commit },id){
+            commit('changeplay',id);
+        },
+
+        createplaylist({commit,getters},plname){
+            const pls=getters.getpl();
+            if (pls.includes(plname)) return false;
+            else commit('addnewpl',plname);
+            const path='http://127.0.0.1:5000/api/playlists'
+            const token=localStorage.getItem('authtoken');
+            axios.post(path,{'name':plname,'song_id':-1},{
+                headers:{
+                    'Content-Type': 'application/json',
+                    'Authentication-token': token,
+                }
+            })
+            .then((res)=>{
+                console.log(res.data.msg);
+            })
+            .catch((err)=>{
+                console.log(err);
+            })
+            return true;
+        },
+
+        deletepl({commit,getters},plname){
+            commit('delpl',plname);
+            const path='http://127.0.0.1:5000/api/playlists'
+            const token=localStorage.getItem('authtoken');
+            axios.delete(path,{
+                headers:{
+                    'Authentication-token': token,
+                },
+                data: {'name':plname}                
+            })
+            .then((res)=>{
+                console.log(res);
+            })
+            .catch((err)=>{
+                console.log(err);
+            })
+        },
+
+        atpl({commit},info){
+            commit('atpl',info);
+            const path='http://127.0.0.1:5000/api/playlists'
+            const token=localStorage.getItem('authtoken');
+            axios.put(path,{'name':info.pl,'song_id':info.sid},{
+                headers:{
+                    'Content-Type': 'application/json',
+                    'Authentication-token': token,
+                }                
+            })  
+            .then((res)=>{
+                console.log(res.data);
+            })          
+            .catch((err)=>{
+                console.log(err.data);
+            })
+        },
+
+        delfpl({commit},info){
+            commit('delfpl',info);
+            const path='http://127.0.0.1:5000/api/delfpl'
+            const token=localStorage.getItem('authtoken');
+            axios.put(path,{'name':info.pl,'sid':info.sid},{
+                headers:{
+                    'Content-Type': 'application/json',
+                    'Authentication-token': token,
+                }                
+            })  
+            .then((res)=>{
+                console.log(res.data);
+            })          
+            .catch((err)=>{
+                console.log(err.data);
+            })                       
+        },
+
+        like({commit},info){
+            commit('like',info);
+            const path='http://127.0.0.1:5000/api/likedsongs'
+            const token=localStorage.getItem('authtoken');
+            axios.put(path,{'sid':info.sid,'aid':info.aid,'cid':info.cid},{
+                headers:{
+                    'Content-Type': 'application/json',
+                    'Authentication-token': token,
+                }                 
+            })
+            .then((res)=>{
+                console.log('liked songs updated');
+            })
+            .catch((err)=>{
+                console.log('liked songs not updated')
+            })
+        },
+
+        flag({commit},sid){
+            commit('flag',sid);
+            const path='http://127.0.0.1:5000/api/flaggedsongs'
+            const token=localStorage.getItem('authtoken');
+            axios.put(path,{'sid':sid},{
+                headers:{
+                    'Content-Type': 'application/json',
+                    'Authentication-token': token,
+                }                 
+            })
+            .then((res)=>{
+                console.log('flagged songs updated');
+            })
+            .catch((err)=>{
+                console.log('flagged songs not updated')
+            })            
+        },
+
 
     },
 })

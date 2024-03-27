@@ -1,14 +1,17 @@
 <script setup>
 import navbar from "@/components/navbar.vue";
+import atpl from "@/components/uprofile/atpl.vue";
 import rsbar from "@/components/rsbar.vue";
-import lsbar from "@/components/lsbar.vue";
 import player from "@/components/player.vue"
 import topsongs from "@/components/homep/topsongs.vue";
+import topalbums from "@/components/homep/topalbums.vue";
+import topartists from "@/components/homep/topartists.vue";
 
-import { ref, onMounted, computed, onBeforeMount, toRaw } from 'vue'
+import { ref, onMounted, computed, onBeforeMount, watch } from 'vue'
 
 import Libstore from "@/stores/Lib.js"
 import Userstore from "@/stores/User.js"
+import Playstore from "@/stores/Play.js"
 
 const user=ref('');
 const mounted=ref(false);
@@ -18,9 +21,10 @@ onBeforeMount( async () => {
   await Libstore.dispatch('libload',user.value);
   mounted.value=true;
 });
- 
-let ls=ref(true);
-let rs=ref(true);
+const current=ref({});
+current.value=Playstore.getters.currentsong(); 
+let ls=ref(false);
+let rs=ref(false);
  
 const barchng=(bar)=>{
   if (bar==='ls') ls.value=!ls.value;
@@ -34,18 +38,13 @@ const barchk=(bar)=>{
 
 <template>
   <div v-if="mounted" class="homepage"> 
-    <navbar/>
-    <div class="homecontent d-flex justify-content-center" style="width:100%;">
-      <div class="bars ltb d-flex">
-      <lsbar v-if="barchk('ls')"/>
-      <button class="lsbut btn" @click="barchng('ls')">
-        <i v-if="!barchk('ls')" class="bi bi-chevron-bar-right"></i>
-        <i v-if="barchk('ls')" class="bi bi-chevron-bar-left"></i>
-      </button>
-      </div>
-      <div class="discont">
-          {{user.username}}
-          <topsongs />
+    <atpl :sid="current.id"/>
+    <navbar />
+    <div class="homecontent d-flex justify-content-between align-items-start flex-grow-1" style="width:100%;">
+      <div class="discont d-flex flex-column gap-5">
+          <topsongs :des="{'type':'home'}"/>
+          <topalbums :des="{'type':'home'}"/>
+          <topartists :des="{'type':'home'}"/>
       </div>
       <div class="bars rtb d-flex">
       <button class="rsbut btn" @click="barchng('rs')">
@@ -64,7 +63,7 @@ const barchk=(bar)=>{
     height: 100vh;
   }
   .homecontent{
-    background-color: rgb(198, 218, 196);
+    background-color: #c6dac4;
     align-items: center;
     height:79vh;
   }
@@ -86,8 +85,8 @@ const barchk=(bar)=>{
     align-items: center;
   }
   .discont {
-  overflow: auto; 
-  outline: 1px solid red;
+  overflow: auto;  
   height: 79vh;
+  margin-left:20px;
   }
 </style>

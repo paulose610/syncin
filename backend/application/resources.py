@@ -4,9 +4,10 @@ from flask import jsonify, make_response, request
 from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import or_
 from .sec import datastore
-from .models import db, User, Role, Playlist, Likedsongs, Album, Song
+from .models import db, User, Role, Playlist, Likedsongs, Album, Song, Flaggedsongs
 import os
 from .config import Config
+from .tasks import *
 
 
 api=Api(prefix='/api')
@@ -31,6 +32,8 @@ class login(Resource):
         elif user and check_password_hash(user.password,password):
             token=user.get_auth_token()
             print("success!")
+            user.visited=True
+            db.session.commit()
             return jsonify({
                             "token": token,
                              "email": user.email,
@@ -72,6 +75,7 @@ class register(Resource):
         
         if crtrname:
             user=datastore.find_user(creator_name=crtrname)
+        else: crtrname=None    
         if user:
             return make_response(jsonify({"message":"creator Name already exists!"}), 400)
         r="creator" if creator else "user"
@@ -82,7 +86,8 @@ class register(Resource):
                               roles=[r],
                               active=1,
                               sub=False,
-                              creator_name=crtrname
+                              creator_name=crtrname,
+                              visited=True
                               )
     
         db.session.commit()
@@ -94,7 +99,8 @@ class register(Resource):
                             "role": user.roles[0].name,
                             "id": user.id,
                             "last_played": user.last_played,
-                            "creator_name":user.creator_name
+                            "creator_name":user.creator_name,
+                            "sub": user.sub
                             },
                         "message":"account created"})
 
@@ -123,16 +129,14 @@ class retreive(Resource):
                         "role": current_user.roles[0].name,
                         "id": current_user.id,
                         "creator_name": current_user.creator_name,
-                        "last_played": current_user.last_played
+                        "last_played": current_user.last_played,
+                        "sub": current_user.sub
                         })
     def put(self):
         args= self.parser.parse_args()
         crtrname=args.get("cname")  
-        email=args.get("email")
-        print(crtrname)  
-        print(email)    
+        email=args.get("email")  
         crtr=datastore.find_user(creator_name=crtrname)
-        print(crtr)
         if crtr is None:
             user=datastore.find_user(email=email)
             current_role=Role.query.get(1)
@@ -151,12 +155,11 @@ api.add_resource(retreive,'/retreive')
 #----------------------------------------Library------------------------------------
 
 playlist_fields = {
-    'id': fields.Integer,
     'name': fields.String,
+    'song_id': fields.String,
 }
 
 likedsongs_fields = {
-    'id': fields.Integer,
     'song_id': fields.Integer
 }
 
@@ -175,11 +178,13 @@ song_fields = {
     'cover': fields.String,
     'audio': fields.String,
     'likes': fields.Integer,
+    'flags': fields.Integer,
     'time_played': fields.Integer,
     'playlist_id': fields.Integer,
     'creator_id': fields.Integer,
     'album_id': fields.Integer,
-    'genre': fields.String
+    'genre': fields.String,
+    'play': fields.Boolean
 }
 
 
@@ -188,19 +193,159 @@ class playlists(Resource):
     @auth_token_required
     def get(self):
         user=current_user
-        playlists=user.playlists
+        #playlists=Playlist.query.filter(Playlist.user_id==user.id)
+        playlists=user.playlists.all()
+        print(playlists)
         return jsonify(marshal(playlists,playlist_fields))
+    
+    @auth_token_required
+    def post(self):
+        user=current_user
+        data=request.json
+        name=data.get('name')
+        song_id=data.get('song_id')
+        upl = user.playlists.filter_by(name=name).first()
+        if (upl): return make_response(jsonify({'error':'Playlist already exists'}),400)
+        else :
+            newpl=Playlist(name=name,song_id=song_id,user_id=user.id)
+            db.session.add(newpl)
+            db.session.commit()
+            return jsonify({'msg':'Playlist Created'})
 
-api.add_resource(playlists,'/playlists')  
+    @auth_token_required
+    def delete(self):    
+        user=current_user
+        data=request.json
+        name=data.get('name')
+        pls=user.playlists.filter_by(name=name)
+        for pl in pls:
+            db.session.delete(pl)
+        db.session.commit()  
+        return jsonify({'msg':'playlist Deleted'})  
+    
+    @auth_token_required
+    def put(self):
+        user=current_user
+        data=request.json
+        pl=data.get('name')
+        sid=data.get('song_id')
+        val=user.playlists.filter_by(name=pl,song_id=sid,user_id=user.id).first()
+        if val: return make_response(jsonify({'error':'song already exists in this playlist'}),400)
+        else:
+            newval=Playlist(name=pl,song_id=sid,user_id=user.id)
+            db.session.add(newval)
+            db.session.commit()
+            return jsonify({'msg':'song added to playlist!'})
+    
+api.add_resource(playlists,'/playlists')
+
+
+class delfpl(Resource):
+
+    @auth_token_required
+    def put(self):
+        user=current_user
+        print(user)
+        data=request.json
+        sid=data.get('sid')
+        pl=data.get('name')
+        stdel=user.playlists.filter_by(name=pl,song_id=sid,user_id=user.id).first()
+        if stdel:
+            db.session.delete(stdel)
+            db.session.commit()
+            return jsonify({'msg':'song deleted from playlist'})
+        else:
+            make_response(jsonify({'err':'no such song in pl!'}),400)
+
+
+api.add_resource(delfpl,'/delfpl')
+
+
 
 class likedsongs(Resource):
+    
     @auth_token_required
     def get(self):
         user=current_user
         likedsongs=Likedsongs.query.filter(Likedsongs.user_id==user.id).all()
+        print(likedsongs)
         return jsonify(marshal(likedsongs,likedsongs_fields))
+    
+    @auth_token_required
+    def put(self):
+        user=current_user
+        data=request.json
+        sid=data.get('sid')
+        aid=data.get('aid')
+        cid=data.get('cid')
+        ls=user.likes.filter_by(song_id=sid).first()
+        if ls: 
+            db.session.delete(ls)
+            lsong=Song.query.filter(Song.id==sid).first()
+            lsong.likes=lsong.likes-1
+            db.session.commit()
+
+            lal=Album.query.filter(Album.id==aid).first()
+            if lal:
+                lal.likes=lal.likes-1
+                db.session.commit()
+
+            crtr=User.query.filter(User.id==cid).first()
+            crtr.clikes=crtr.clikes-1
+            db.session.commit() 
+
+        else:
+            nls=Likedsongs(user_id=user.id,song_id=sid)
+            db.session.add(nls)
+
+            lsong=Song.query.filter(Song.id==sid).first()
+            lsong.likes=lsong.likes+1
+            db.session.commit()
+
+            lal=Album.query.filter(Album.id==aid).first()
+            if lal:
+                lal.likes=lal.likes+1
+                db.session.commit()
+
+            crtr=User.query.filter(User.id==cid).first()
+            crtr.clikes=crtr.clikes+1
+            db.session.commit()    
+
+        db.session.commit()
+
 
 api.add_resource(likedsongs, '/likedsongs')
+
+class flaggedsongs(Resource):
+
+    @auth_token_required
+    def get(self):
+        user=current_user
+        flaggedsongs=user.flags.all()
+        return jsonify(marshal(flaggedsongs,likedsongs_fields))
+    
+    @auth_token_required
+    def put(self):
+        user=current_user
+        data=request.json
+        sid=data.get('sid')
+        fs=user.flags.filter_by(song_id=sid).first()
+        if fs: 
+            db.session.delete(fs)
+            fsong=Song.query.filter(Song.id==sid).first()
+            fsong.flags=fsong.flags-1
+            db.session.commit()
+
+        else:
+            nfs=Flaggedsongs(user_id=user.id,song_id=sid)
+            db.session.add(nfs)
+            fsong=Song.query.filter(Song.id==sid).first()
+            fsong.flags=fsong.flags+1
+            db.session.commit()    
+
+        db.session.commit()    
+    
+api.add_resource(flaggedsongs, '/flaggedsongs')    
 
 class albums(Resource):
     
@@ -472,7 +617,6 @@ class songs(Resource):
             'audio': new_song.audio,
             'likes': new_song.likes,
             'time_played': new_song.time_played,
-            'playlist_id': new_song.playlist_id,
             'creator_id': new_song.creator_id,
             'album_id': new_song.album_id,
             'genre': new_song.genre    
@@ -570,7 +714,6 @@ class songs(Resource):
                 'audio': song.audio,
                 'likes': song.likes,
                 'time_played': song.time_played,
-                'playlist_id': song.playlist_id,
                 'creator_id': song.creator_id,
                 'album_id': song.album_id,
                 'genre': song.genre    
@@ -613,6 +756,21 @@ class songs(Resource):
 api.add_resource(songs,'/songs')
 
 
+class atlp(Resource):
+
+    @auth_token_required
+    def get(self):
+        sid=request.args.get('sid')
+        print(sid)
+
+    @auth_token_required
+    def put(self):
+        data = request.json
+        sid = data.get('sid')
+        uid=current_user.id   
+        add_to_last_played.delay(uid,sid)
+
+api.add_resource(atlp,'/atlp')        
 
 
 

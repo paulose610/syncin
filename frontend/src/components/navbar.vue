@@ -1,13 +1,51 @@
 <script setup>
-    import { ref, onBeforeMount, onMounted, defineProps } from 'vue'
-    import { RouterLink } from 'vue-router';
+    import { ref, computed, watch} from 'vue'
+    import { RouterLink, useRouter, useRoute } from 'vue-router';
     import Userstore from "@/stores/User";
+    import Libstore from "@/stores/Lib";
 
+    const route=useRoute();
+    const router = useRouter();
+    function search(val){
+      if (fs.value) fs.value=false
+      else if(val){
+        if (val.trim().length==0) pass;
+        else router.push({ name: 'searchd', params: {param:searchval.value}, reload:true });
+      }    
+    }
+    function fsearch(...args){
+      if (!fs.value) fs.value=true
+      else if (args[0]!='' || args[1]!='' || args[2]!=''){
+        console.log(args[0]);
+        router.push({ name: 'searchd', params:{param:'!@#'}, query:{genre:g.value,artist: aname.value, album:album.value}, reload:true });
+      }
+    }
     const user=Userstore.getters.getuser();
 
     const logout=()=>{
         Userstore.dispatch('logout');
     }
+    const searchval=ref(route.params.param);
+    const fs=ref(false);
+    const aname=ref('');
+    const artists=ref([]);
+    const albums=ref([]);
+    const album=ref('');
+    const genres=ref([]);
+    const g=ref('');
+
+    function fetch(){
+     genres.value=Libstore.getters.getgenres(); 
+     artists.value=Libstore.getters.getcreators().sort((a,b)=>{
+                                                  if (a.name>b.name) return 1;
+                                                  return -1
+                                                });
+     albums.value=[...new Set(Libstore.getters.getalbums().sort((a,b)=>{
+                                                  if (a.name>b.name) return 1;
+                                                  return -1
+                                                }))];
+    }
+    fetch();
 </script>
 
 <template>
@@ -24,10 +62,42 @@
                 <i class="bi bi-house-door-fill"></i>
             </RouterLink>
           </li>
-          <li class="nav-item" style="min-width:40%;">
-            <form class="d-flex">
-              <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
-              <button class="btn btn-outline-success" type="submit"><i class="bi bi-search"></i></button>
+          <li class="nav-item d-flex" style="min-width:30%;">
+            <button class="fs btn btn-outline-success" @click="fsearch(g,aname,album)"><i class="bi bi-funnel"></i></button>
+            <form class="d-flex" @submit.prevent="search(searchval)">
+              <div class="forminput" style="width: 100%">
+              <input v-if="!fs" class="form-control me-2" type="search" placeholder="Search" aria-label="Search" v-model="searchval">
+              <div v-else class="btn-group d-flex align-items-center" role="group" aria-label="Basic outlined example">
+                <div class="dropdown">
+                  <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Genre</button>
+                  <ul class="dropdown-menu">
+                    <li class="ardd d-flex gap-2">
+                      <div v-for="genre in genres" :key="genre" @click="g=genre" style="cursor: pointer;"
+                      :class="{'lup':g==genre}">{{genre}}</div>
+                    </li>
+                  </ul>                 
+                </div>                
+                <div class="dropdown">
+                <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Artist</button>
+                <ul class="dropdown-menu">
+                    <li class="ardd d-flex gap-2">
+                      <div v-for="(art,index) in artists" :index="index" :key="art.id" @click="aname=art.creator_name" style="cursor: pointer;"
+                            :class="{'lup':art.creator_name==aname}">{{ art.creator_name }}</div>
+                    </li>
+                </ul>  
+                </div>
+                <div class="dropdown">
+                  <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Album</button>
+                  <ul class="dropdown-menu">
+                    <li class="ardd d-flex gap-2">
+                      <div v-for="(al,index) in albums" :key="al.id" :index="index" @click="album=al.name" style="cursor: pointer;"
+                            :class="{'lup':album==al.name}">{{al.name}}</div>                                                         
+                    </li>
+                  </ul>                 
+                </div>                
+              </div>                          
+              </div>
+              <button class="s btn btn-outline-success" type="submit"><i class="bi bi-search"></i></button>
             </form>
           </li>
           <li class="nav-item d-flex">
@@ -61,5 +131,35 @@
 </template>
 
 <style scoped>
-   nav{min-height: 10.5vh;} 
+   nav{
+    min-height: 10.5vh;
+  }
+  
+  .fs{
+    margin-right: 8px;
+  }
+  .s{
+    margin-left: 8px;
+  }
+
+  form{
+    width: 1000%;
+  }
+  .ardd{
+    padding-left: 5px;
+    width: 300px;
+    flex-wrap: wrap;
+  }
+  .ddcont{
+    overflow-x: auto;
+    height: 15px;
+    max-width:70px; 
+    outline: 1px solid green;
+    border-radius: 5px;
+    text-align: center;
+  }
+  .lup{
+    color: #0d6efd;
+  }
+
 </style>

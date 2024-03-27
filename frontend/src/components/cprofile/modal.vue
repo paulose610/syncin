@@ -37,4 +37,4 @@ const props=defineProps({
     transition: opacity 0.01s linear;
 }
 
-</style>./edit/upload.vue
+</style>

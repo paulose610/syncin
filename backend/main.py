@@ -6,6 +6,10 @@ from flask_security import SQLAlchemyUserDatastore, Security
 from application.models import db
 from application.resources import api
 from flask_migrate import Migrate
+from application.worker import celery_init_app
+from celery.schedules import crontab
+from application.tasks import daily_reminder, toremind
+from application.instances import cache
 
 def create_app():
     app=Flask(__name__)
@@ -14,12 +18,28 @@ def create_app():
     migrate=Migrate(app,db)
     api.init_app(app)
     app.security=Security(app,datastore)
+    cache.init_app(app)
     with app.app_context():
         import application.views
     
     return app
 
 app=create_app()
+celery_app = celery_init_app(app)
+
+@celery_app.on_after_configure.connect
+def send_email(sender, **kwargs):
+    sender.add_periodic_task(
+        crontab(hour=23, minute=39),
+        daily_reminder.s('admin@syncin.ac.in', 'Daily Test'),
+    )
+
+@celery_app.on_after_configure.connect
+def reset_visited(sender, **kwargs):
+    sender.add_periodic_task(
+        crontab(hour=23, minute=28),
+        toremind.s(),    
+    )
 
 CORS(app,resources={r"/*":{'origins':"*"}})
 

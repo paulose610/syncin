@@ -13,6 +13,8 @@ const Userstore =createStore({
             token: localStorage.getItem('authtoken') || "",
             creator_name:"",
             id: 0,
+            last_played: "",
+            subc: false
             },
             error:""
         };
@@ -21,6 +23,7 @@ const Userstore =createStore({
     getters: {
         geterror: (state) => ()=>state.error,
         getuser: (state) => () => state.user,
+        getlp: (state) => () => state.user.last_played,
     },
 
     mutations:{
@@ -35,13 +38,15 @@ const Userstore =createStore({
             state.user.role=d.role;
             state.user.creator_name=d.creator_name;
             state.user.last_played=d.last_played;
+            state.user.subc=d.sub;
         },
         setuser(state,d){
             state.user.username=d.username;
             state.user.email=d.email;
             state.user.token=d.token;
             state.user.role=d.role;
-            state.user.creator_name=d.creator_name
+            state.user.creator_name=d.creator_name;
+            state.user.last_played=d.last_played;
             localStorage.setItem("authtoken",d.token);
         },
         seterror(state, error) {
@@ -61,12 +66,39 @@ const Userstore =createStore({
             state.user.creator_name=payload;
             state.user.role='creator';
             console.log(state.user.creator_name);
+        },
+
+        atlp(state,sid){
+            let lp=state.user.last_played.split(',');
+            if (lp.length>4) lp.pop();
+            lp=[sid.toString(), ...lp]
+            lp=new Set(lp);
+            state.user.last_played=Array.from(lp).join(',');
+
         }
     },
 
 
 
     actions: {
+
+        atlp({ commit }, sid){
+            commit('atlp',sid);
+            const token=localStorage.getItem('authtoken');
+            const path='http://127.0.0.1:5000/api/atlp';
+            axios.put(path,{'sid':sid},{
+                headers:{
+                    'Content-Type': 'application/json',
+                    'Authentication-token': token
+                },
+            })
+            .then((res)=>{
+                pass
+            })
+            .catch((err)=>{
+                console.log('task que failed');
+            })
+        },     
 
         clearuser({ commit }) {
             commit('clearuser');
